@@ -1094,9 +1094,9 @@
            (let [spec @spec
                  [init add complete] (cfns x)]
              (loop [ret (init x), i 0, [v & vs :as vseq] (seq x)]
-               (if (>= i (clojure.core/count x))
-                 (complete ret)
-                 (recur (add ret i v (s/unform spec v)) (inc i) vs))))
+               (if vseq
+                 (recur (add ret i v (s/unform spec v)) (inc i) vs)
+                 (complete ret))))
            x))
        (explain* [_ path via in x settings-key settings]
          (or (coll-prob x kind kind-form distinct count min-count max-count
