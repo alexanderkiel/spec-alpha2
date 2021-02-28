@@ -787,7 +787,7 @@
   [keys forms gfn]
   (let [id (java.util.UUID/randomUUID)
         specs (delay (mapv s/resolve-spec forms))
-        kps (zipmap keys @specs)
+        kps (delay (zipmap keys @specs))
         cform (case (count forms)
                 2 (fn [x settings-key settings]
                     (let [specs @specs
@@ -823,7 +823,7 @@
     (reify
       Spec
       (conform* [_ x settings-key settings] (cform x settings-key settings))
-      (unform* [_ [k x]] (s/unform (kps k) x))
+      (unform* [_ [k x]] (s/unform (@kps k) x))
       (explain* [this path via in x settings-key settings]
         (when-not (pvalid? this x)
           (apply concat
