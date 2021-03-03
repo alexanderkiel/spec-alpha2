@@ -438,13 +438,14 @@
                   (recur (if-not (identical? v conformed) (assoc ret k conformed) ret) ks)))
               ret))))
       (unform* [_ x]
-        (loop [ret x, [[k v] & ks :as m] x]
-          (if-not m
-            ret
+        (reduce-kv
+          (fn [ret k v]
             (if-let [sp (lookup k)]
               (let [uv (s/unform sp v)]
-                (recur (if (identical? uv v) ret (assoc ret k uv)) ks))
-              (recur ret ks)))))
+                (if (identical? uv v) ret (assoc ret k uv)))
+              ret))
+          x
+          x))
       (explain* [_ path via in x settings-key settings]
         (if (not (map? x))
           [{:path path :pred `map? :val x :via via :in in}]
@@ -889,11 +890,25 @@
                       ::s/invalid
                       ;;propagate conformed values
                       (recur nret (inc i))))
-                  ret)))))]
+                  ret)))))
+        uform
+        (case (count forms)
+          1 #(let [specs @specs]
+               (unform* (specs 0) %))
+          2 #(let [specs @specs]
+               (unform* (specs 0) (unform* (specs 1) %)))
+          3 #(let [specs @specs]
+               (unform* (specs 0) (unform* (specs 1) (unform* (specs 2) %))))
+          4 #(let [specs @specs]
+               (->> (unform* (specs 3) %)
+                    (unform* (specs 2))
+                    (unform* (specs 1))
+                    (unform* (specs 0))))
+          (fn [x] (reduce #(unform* %2 %1) x (reverse @specs))))]
     (reify
       Spec
       (conform* [_ x settings-key settings] (cform x settings-key settings))
-      (unform* [_ x] (reduce #(s/unform %2 %1) x (reverse @specs)))
+      (unform* [_ x] (uform x))
       (explain* [_ path via in x settings-key settings] (explain-pred-list (map s/form @specs) @specs path via in x settings-key settings))
 
       (gen* [_ overrides path rmap] (if gfn (gfn) (#'s/gensub (first @specs) overrides path rmap (first forms))))
@@ -1094,9 +1109,9 @@
            (let [spec @spec
                  [init add complete] (cfns x)]
              (loop [ret (init x), i 0, [v & vs :as vseq] (seq x)]
-               (if (>= i (clojure.core/count x))
-                 (complete ret)
-                 (recur (add ret i v (s/unform spec v)) (inc i) vs))))
+               (if vseq
+                 (recur (add ret i v (s/unform spec v)) (inc i) vs)
+                 (complete ret))))
            x))
        (explain* [_ path via in x settings-key settings]
          (or (coll-prob x kind kind-form distinct count min-count max-count
